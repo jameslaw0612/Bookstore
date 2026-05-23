@@ -133,6 +133,7 @@ export default function UserTransactions() {
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(() => getStoredUser())
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null)
+  const [completingOrderId, setCompletingOrderId] = useState<number | null>(null)
   const [cancelNotice, setCancelNotice] = useState<{ title: string; message: string } | null>(null)
 
   const storedUser = getStoredUser()
@@ -326,6 +327,25 @@ export default function UserTransactions() {
     }
   }
 
+  const handleCompleteOrder = async (orderId: number) => {
+    try {
+      setCompletingOrderId(orderId)
+      setError('')
+      setSuccess('')
+
+      const response = await apiRequest<{ success: boolean; message: string; order: Order }>(`/api/orders/${orderId}/complete`, {
+        method: 'PUT',
+      })
+
+      setSuccess(response.message)
+      await loadTransactions()
+    } catch (completeError) {
+      setError(completeError instanceof Error ? completeError.message : 'Failed to complete order')
+    } finally {
+      setCompletingOrderId(null)
+    }
+  }
+
   return (
     <div className="home-container">
       <UserTopBar
@@ -366,6 +386,7 @@ export default function UserTransactions() {
                     <span>Subtotal</span>
                     <span>Status</span>
                     <span>Bought</span>
+                    <span>Action</span>
                   </div>
 
                   {transactionRows.map((row) => (
@@ -394,6 +415,9 @@ export default function UserTransactions() {
                       <span className="order-table__value order-table__value--subtotal">{formatPrice(row.subtotal)}</span>
                       <span className="order-table__status">
                         <span className={`order-status order-status--${row.status}`}>{row.status}</span>
+                      </span>
+                      <span className="order-table__date">{formatOrderTimestamp(row.boughtAt)}</span>
+                      <span className="order-table__action">
                         {row.status === 'paid' || row.status === 'pending' ? (
                           <button
                             type="button"
@@ -403,9 +427,17 @@ export default function UserTransactions() {
                           >
                             {cancellingOrderId === row.orderItemId ? 'Cancelling...' : 'Cancel order'}
                           </button>
+                        ) : row.status === 'shipped' ? (
+                          <button
+                            type="button"
+                            className="order-complete-btn"
+                            onClick={() => void handleCompleteOrder(row.orderId)}
+                            disabled={completingOrderId === row.orderId}
+                          >
+                            {completingOrderId === row.orderId ? 'Completing...' : 'Mark complete'}
+                          </button>
                         ) : null}
                       </span>
-                      <span className="order-table__date">{formatOrderTimestamp(row.boughtAt)}</span>
                     </div>
                   ))}
                 </div>

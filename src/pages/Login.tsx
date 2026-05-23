@@ -21,15 +21,20 @@ export default function Login() {
 
   const parseJsonResponse = async (response: Response) => {
     const rawText = await response.text()
+    const trimmedText = rawText.trim()
 
     try {
-      return JSON.parse(rawText)
+      return JSON.parse(trimmedText)
     } catch {
-      if (rawText.trim().startsWith('<!doctype') || rawText.trim().startsWith('<html')) {
+      if (trimmedText.includes('Failed to open stream: No such file or directory')) {
+        throw new Error('PHP could not find the backend router. Start the PHP server from the `bookstore-app` folder with `php -S 127.0.0.1:8001 router.php`.')
+      }
+
+      if (trimmedText.startsWith('<!doctype') || trimmedText.startsWith('<html')) {
         throw new Error('Backend returned HTML instead of JSON. Check if the PHP server is running and the Vite proxy is pointing to the correct backend URL.')
       }
 
-      throw new Error(`Backend returned an invalid response: ${rawText.slice(0, 120)}`)
+      throw new Error(`Backend returned an invalid response: ${trimmedText.slice(0, 120)}`)
     }
   }
 
@@ -186,6 +191,7 @@ export default function Login() {
                   <input
                     id="user-email"
                     type="email"
+                    autoComplete="email"
                     value={userEmail}
                     onChange={(event) => setUserEmail(event.target.value)}
                     placeholder="you@example.com"
@@ -200,6 +206,7 @@ export default function Login() {
                     <input
                       id="user-password"
                       type={showUserPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
                       value={userPassword}
                       onChange={(event) => setUserPassword(event.target.value)}
                       placeholder="Enter your password"
@@ -228,6 +235,7 @@ export default function Login() {
                   <input
                     id="admin-email"
                     type="email"
+                    autoComplete="email"
                     value={adminEmail}
                     onChange={(event) => setAdminEmail(event.target.value)}
                     placeholder="admin@example.com"
@@ -242,6 +250,7 @@ export default function Login() {
                     <input
                       id="admin-password"
                       type={showAdminPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
                       value={adminPassword}
                       onChange={(event) => setAdminPassword(event.target.value)}
                       placeholder="Enter your password"

@@ -1,3 +1,9 @@
+.cart-drawer,
+.cart-drawer__receipt-dialog {
+  --cart-accent-blue: #20365f;
+  --cart-accent-blue-hover: #162a4b;
+}
+
 .cart-drawer-overlay {
   position: fixed;
   inset: 0;
@@ -133,7 +139,7 @@
 .cart-drawer__item-select input {
   width: 16px;
   height: 16px;
-  accent-color: #dc2626;
+  accent-color: var(--cart-accent-blue);
   cursor: pointer;
 }
 
@@ -280,7 +286,7 @@
   min-height: 38px;
   border: none;
   border-radius: 999px;
-  background: #dc2626;
+  background: var(--cart-accent-blue);
   color: #fff;
   font: inherit;
   font-size: 0.98rem;
@@ -291,6 +297,10 @@
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
+}
+
+.cart-drawer__checkout:hover:not(:disabled) {
+  background: var(--cart-accent-blue-hover);
 }
 
 .cart-drawer__checkout:disabled {
@@ -447,7 +457,11 @@
 
 .cart-drawer__radio-card input {
   margin-top: 0.18rem;
-  accent-color: #dc2626;
+  accent-color: var(--cart-accent-blue);
+}
+
+.cart-drawer__radio-card:has(input:checked) strong {
+  color: var(--cart-accent-blue);
 }
 
 .cart-drawer__radio-card strong {
@@ -483,7 +497,7 @@
 
 .cart-drawer__terms input {
   margin-top: 0.2rem;
-  accent-color: #dc2626;
+  accent-color: var(--cart-accent-blue);
 }
 
 .cart-drawer__confirm-actions {
@@ -510,13 +524,22 @@
 }
 
 .cart-drawer__confirm-cancel {
-  background: #f3f4f6;
-  color: #111827;
+  background: #eef2ff;
+  color: var(--cart-accent-blue);
+  border: 1px solid rgba(32, 54, 95, 0.18);
 }
 
 .cart-drawer__confirm-submit {
-  background: #dc2626;
+  background: var(--cart-accent-blue);
   color: #fff;
+}
+
+.cart-drawer__confirm-cancel:hover:not(:disabled) {
+  background: #e0e7ff;
+}
+
+.cart-drawer__confirm-submit:hover:not(:disabled) {
+  background: var(--cart-accent-blue-hover);
 }
 
 .cart-drawer__confirm-cancel:disabled,

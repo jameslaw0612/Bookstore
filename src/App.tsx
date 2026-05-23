@@ -119,6 +119,15 @@ function App() {
           }
         />
 
+        <Route
+          path="/admin/reports"
+          element={
+            <AdminProtectedRoute>
+              <AdminDashboard />
+            </AdminProtectedRoute>
+          }
+        />
+
         {/* Fallback route: If user navigates to any undefined route */}
         {/* Use Navigate component with 'replace' to redirect to landing page */}
         {/* The 'replace' prop replaces the URL in history instead of adding to it */}

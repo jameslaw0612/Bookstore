@@ -176,6 +176,99 @@ function apiHasAnyAddressFields(array $address): bool
     return false;
 }
 
+function apiFormatAddressSummary(array $address): string
+{
+    $parts = array_filter([
+        trim((string) ($address['house_number'] ?? '')),
+        trim((string) ($address['street'] ?? '')),
+        trim((string) ($address['apartment_unit'] ?? '')),
+        trim((string) ($address['barangay'] ?? '')),
+        trim((string) ($address['city_town'] ?? '')),
+        trim((string) ($address['state_province'] ?? '')),
+        trim((string) ($address['country'] ?? '')),
+    ], static fn(string $value): bool => $value !== '');
+
+    return implode(', ', $parts);
+}
+
+function apiHasOrderDeliveryTable(PDO $conn): bool
+{
+    try {
+        $stmt = dbPrepare($conn, "
+            SELECT COUNT(*)
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'order_delivery_tbl'
+        ");
+        $stmt->execute();
+        return intval($stmt->fetchColumn()) > 0;
+    } catch (Throwable $exception) {
+        return false;
+    }
+}
+
+function apiEnsureOrderDeliveryTable(PDO $conn): bool
+{
+    if (apiHasOrderDeliveryTable($conn)) {
+        return true;
+    }
+
+    try {
+        dbPrepare($conn, '
+            CREATE TABLE IF NOT EXISTS order_delivery_tbl (
+                order_id INT PRIMARY KEY,
+                contact_phone_encrypted TEXT NULL,
+                contact_phone_iv VARCHAR(255) NULL,
+                contact_phone_tag VARCHAR(255) NULL,
+                address_snapshot_fld TEXT NULL,
+                CONSTRAINT fk_order_delivery_order
+                    FOREIGN KEY (order_id) REFERENCES orders_tbl(order_id)
+                    ON DELETE CASCADE
+            ) ENGINE=InnoDB
+        ')->execute();
+    } catch (Throwable $exception) {
+        return false;
+    }
+
+    return apiHasOrderDeliveryTable($conn);
+}
+
+function apiUpsertOrderDeliverySnapshot(PDO $conn, int $orderId, string $phone, array $address): void
+{
+    if (!apiEnsureOrderDeliveryTable($conn)) {
+        return;
+    }
+
+    $encryptedPhone = EncryptionUtil::encryptForStorage($phone);
+    dbPrepare($conn, '
+        INSERT INTO order_delivery_tbl (
+            order_id, contact_phone_encrypted, contact_phone_iv, contact_phone_tag, address_snapshot_fld
+        )
+        VALUES (:order_id, :phone_encrypted, :phone_iv, :phone_tag, :address_snapshot)
+        ON DUPLICATE KEY UPDATE
+            contact_phone_encrypted = VALUES(contact_phone_encrypted),
+            contact_phone_iv = VALUES(contact_phone_iv),
+            contact_phone_tag = VALUES(contact_phone_tag),
+            address_snapshot_fld = VALUES(address_snapshot_fld)
+    ')->execute([
+        ':order_id' => $orderId,
+        ':phone_encrypted' => $encryptedPhone['encrypted'],
+        ':phone_iv' => $encryptedPhone['iv'],
+        ':phone_tag' => $encryptedPhone['tag'],
+        ':address_snapshot' => apiFormatAddressSummary($address),
+    ]);
+}
+
+function apiDeleteOrderDeliverySnapshot(PDO $conn, int $orderId): void
+{
+    if (!apiHasOrderDeliveryTable($conn)) {
+        return;
+    }
+
+    dbPrepare($conn, 'DELETE FROM order_delivery_tbl WHERE order_id = :order_id')
+        ->execute([':order_id' => $orderId]);
+}
+
 function apiFetchAddressesByAccountId(PDO $conn, int $accountId): array
 {
     $stmt = dbPrepare($conn, '
@@ -303,7 +396,8 @@ function apiFetchOrderById(PDO $conn, int $orderId): ?array
         SELECT o.order_id, o.account_id, o.total_amount_fld, o.order_status_fld,
                o.payment_encrypted, o.payment_iv, o.payment_tag,
                o.order_created_fld, o.order_updated_fld,
-               ua.email, un.fname_fld, un.lname_fld
+               ua.email, ua.phone_encrypted, ua.phone_iv, ua.phone_tag,
+               un.fname_fld, un.lname_fld
         FROM orders_tbl o
         JOIN user_account_tbl ua ON ua.account_id = o.account_id
         JOIN user_name_tbl un ON un.name_id = ua.name_id
@@ -327,6 +421,40 @@ function apiFetchOrderById(PDO $conn, int $orderId): ?array
     ");
     $itemsStmt->execute([':order_id' => $orderId]);
 
+    $deliverySnapshot = [
+        'phone' => '',
+        'address' => '',
+    ];
+
+    if (apiHasOrderDeliveryTable($conn)) {
+        $deliveryStmt = dbPrepare($conn, '
+            SELECT contact_phone_encrypted, contact_phone_iv, contact_phone_tag, address_snapshot_fld
+            FROM order_delivery_tbl
+            WHERE order_id = :order_id
+        ');
+        $deliveryStmt->execute([':order_id' => $orderId]);
+        $delivery = $deliveryStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($delivery) {
+            $deliverySnapshot = [
+                'phone' => apiDecryptStoredValue(
+                    $delivery['contact_phone_encrypted'] ?? null,
+                    $delivery['contact_phone_iv'] ?? null,
+                    $delivery['contact_phone_tag'] ?? null
+                ),
+                'address' => trim((string) ($delivery['address_snapshot_fld'] ?? '')),
+            ];
+        }
+    }
+
+    $fallbackAddress = '';
+    if ($deliverySnapshot['address'] === '') {
+        $addresses = apiFetchAddressesByAccountId($conn, intval($order['account_id']));
+        if (!empty($addresses)) {
+            $fallbackAddress = apiFormatAddressSummary($addresses[0]);
+        }
+    }
+
     return [
         'order_id' => intval($order['order_id']),
         'account_id' => intval($order['account_id']),
@@ -344,6 +472,16 @@ function apiFetchOrderById(PDO $conn, int $orderId): ?array
             'fname' => $order['fname_fld'],
             'lname' => $order['lname_fld'],
             'email' => $order['email'],
+            'phone' => $deliverySnapshot['phone'] !== ''
+                ? $deliverySnapshot['phone']
+                : apiDecryptStoredValue(
+                    $order['phone_encrypted'] ?? null,
+                    $order['phone_iv'] ?? null,
+                    $order['phone_tag'] ?? null
+                ),
+        ],
+        'delivery' => [
+            'address' => $deliverySnapshot['address'] !== '' ? $deliverySnapshot['address'] : $fallbackAddress,
         ],
         'items' => array_map(
             static fn(array $item): array => [

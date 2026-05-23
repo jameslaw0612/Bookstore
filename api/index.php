@@ -556,6 +556,15 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
             apiResponse(400, ['success' => false, 'message' => 'The selected delivery address is not available']);
         }
 
+        $orderingUser = apiFetchUserById($conn, $accountId);
+        if (!$orderingUser) {
+            apiResponse(404, ['success' => false, 'message' => 'User not found']);
+        }
+        $deliveryPhone = trim((string) ($orderingUser['phone'] ?? ''));
+        if ($deliveryPhone === '') {
+            apiResponse(400, ['success' => false, 'message' => 'Please add a contact number before placing your order']);
+        }
+
         $allowedPaymentMethods = [
             'Cash on delivery',
             'Payments via Maya (Credit/Debit Card, G-Cash, Maya)',
@@ -650,6 +659,7 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
                 ]);
 
                 $checkedOutOrderId = intval($cart['order_id']);
+                apiUpsertOrderDeliverySnapshot($conn, $checkedOutOrderId, $deliveryPhone, $selectedAddress);
             } else {
                 dbPrepare($conn, '
                     INSERT INTO orders_tbl (account_id, total_amount_fld, payment_encrypted, payment_iv, payment_tag, order_status_fld)
@@ -663,6 +673,7 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
                     ':status' => $status,
                 ]);
                 $checkedOutOrderId = intval($conn->lastInsertId());
+                apiUpsertOrderDeliverySnapshot($conn, $checkedOutOrderId, $deliveryPhone, $selectedAddress);
 
                 foreach ($checkoutItems as $item) {
                     dbPrepare($conn, '
@@ -696,6 +707,7 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
                     ':order_id' => intval($cart['order_id']),
                     ':account_id' => $accountId,
                 ]);
+                apiDeleteOrderDeliverySnapshot($conn, intval($cart['order_id']));
 
                 dbPrepare($conn, 'DELETE FROM order_items_tbl WHERE order_id = :order_id')
                     ->execute([':order_id' => intval($cart['order_id'])]);
@@ -989,6 +1001,36 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
         ]);
     }
 
+    if ($orderId > 0 && ($segments[1] ?? '') === 'complete' && $method === 'PUT') {
+        $order = apiFetchOrderById($conn, $orderId);
+        if (!$order) {
+            apiResponse(404, ['success' => false, 'message' => 'Order not found']);
+        }
+        if (intval($order['account_id']) !== intval($currentUser['account_id']) && $currentUser['role'] !== 'admin') {
+            apiResponse(403, ['success' => false, 'message' => 'Access denied']);
+        }
+        if ($order['status'] !== 'shipped') {
+            apiResponse(400, ['success' => false, 'message' => 'Only shipped orders can be marked as completed']);
+        }
+
+        dbPrepare($conn, '
+            UPDATE orders_tbl
+            SET order_status_fld = :status
+            WHERE order_id = :order_id AND account_id = :account_id
+        ')->execute([
+            ':status' => 'completed',
+            ':order_id' => $orderId,
+            ':account_id' => intval($order['account_id']),
+        ]);
+
+        $updatedOrder = apiFetchOrderById($conn, $orderId);
+        apiResponse(200, [
+            'success' => true,
+            'message' => 'Order marked as completed successfully',
+            'order' => $updatedOrder,
+        ]);
+    }
+
     if ($orderId > 0 && $method === 'GET') {
         $order = apiFetchOrderById($conn, $orderId);
         if (!$order) {
@@ -1027,6 +1069,74 @@ function handleAdminRoutes(PDO $conn, string $method, array $segments): void
         handleBookRoutes($conn, 'GET', []);
     }
 
+    if ($resource === 'orders' && $method === 'GET') {
+        $stmt = dbPrepare($conn, '
+            SELECT order_id
+            FROM orders_tbl
+            WHERE order_status_fld != :cart_status
+            ORDER BY order_created_fld DESC, order_id DESC
+        ');
+        $stmt->execute([':cart_status' => 'cart']);
+
+        $orders = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $orderId) {
+            $order = apiFetchOrderById($conn, intval($orderId));
+            if ($order !== null) {
+                $orders[] = $order;
+            }
+        }
+
+        apiResponse(200, ['success' => true, 'orders' => $orders, 'total' => count($orders)]);
+    }
+
+    if ($resource === 'orders' && intval($segments[1] ?? 0) > 0 && ($segments[2] ?? '') === 'status' && $method === 'PUT') {
+        $orderId = intval($segments[1]);
+        $data = apiReadJsonBody();
+        $nextStatus = trim((string) ($data['status'] ?? ''));
+
+        if (!in_array($nextStatus, ['paid', 'shipped'], true)) {
+            apiResponse(400, ['success' => false, 'message' => 'Admin can only change orders to paid or shipped']);
+        }
+
+        $order = apiFetchOrderById($conn, $orderId);
+        if ($order === null) {
+            apiResponse(404, ['success' => false, 'message' => 'Order not found']);
+        }
+
+        $allowedTransitions = [
+            'pending' => 'paid',
+            'paid' => 'shipped',
+        ];
+
+        $currentStatus = (string) ($order['status'] ?? '');
+        $allowedNextStatus = $allowedTransitions[$currentStatus] ?? null;
+
+        if ($allowedNextStatus === null || $allowedNextStatus !== $nextStatus) {
+            apiResponse(400, [
+                'success' => false,
+                'message' => 'Only pending orders can become paid, and only paid orders can become shipped',
+            ]);
+        }
+
+        dbPrepare($conn, '
+            UPDATE orders_tbl
+            SET order_status_fld = :status
+            WHERE order_id = :order_id
+        ')->execute([
+            ':status' => $nextStatus,
+            ':order_id' => $orderId,
+        ]);
+
+        $updatedOrder = apiFetchOrderById($conn, $orderId);
+        apiResponse(200, [
+            'success' => true,
+            'message' => $nextStatus === 'paid'
+                ? 'Order marked as paid successfully'
+                : 'Order marked as shipped successfully',
+            'order' => $updatedOrder,
+        ]);
+    }
+
     apiResponse(404, ['success' => false, 'message' => 'Admin endpoint not found']);
 }
 
@@ -1037,44 +1147,286 @@ function handleReportRoutes(PDO $conn, string $method, array $segments): void
 
     if ($resource === 'sales' && $method === 'GET') {
         $summaryStmt = dbPrepare($conn, "
-            SELECT COUNT(*) AS order_count,
+            SELECT COUNT(*) AS successful_order_count,
                    COALESCE(SUM(total_amount_fld), 0) AS total_sales,
-                   COALESCE(AVG(total_amount_fld), 0) AS average_order_value
+                   COALESCE(AVG(total_amount_fld), 0) AS average_order_value,
+                   COALESCE(MAX(total_amount_fld), 0) AS highest_order_value,
+                   COALESCE(MIN(total_amount_fld), 0) AS lowest_order_value,
+                   COUNT(DISTINCT account_id) AS paying_customers
             FROM orders_tbl
-            WHERE order_status_fld NOT IN ('cancelled', 'cart')
+            WHERE order_status_fld IN ('paid', 'shipped', 'completed')
         ");
         $summaryStmt->execute();
-        $summary = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: ['order_count' => 0, 'total_sales' => 0, 'average_order_value' => 0];
+        $summary = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [
+            'successful_order_count' => 0,
+            'total_sales' => 0,
+            'average_order_value' => 0,
+            'highest_order_value' => 0,
+            'lowest_order_value' => 0,
+            'paying_customers' => 0,
+        ];
 
-        apiResponse(200, [
-            'success' => true,
-            'report' => [
-                'order_count' => intval($summary['order_count']),
-                'total_sales' => floatval($summary['total_sales']),
-                'average_order_value' => floatval($summary['average_order_value']),
-            ],
-        ]);
-    }
-
-    if ($resource === 'orders' && $method === 'GET') {
-        $stmt = dbPrepare($conn, "
-            SELECT order_status_fld AS status, COUNT(*) AS total_orders, COALESCE(SUM(total_amount_fld), 0) AS total_amount
+        $statusStmt = dbPrepare($conn, "
+            SELECT order_status_fld AS status,
+                   COUNT(*) AS total_orders,
+                   COALESCE(SUM(total_amount_fld), 0) AS total_amount
             FROM orders_tbl
             WHERE order_status_fld != 'cart'
             GROUP BY order_status_fld
-            ORDER BY order_status_fld ASC
+            ORDER BY FIELD(order_status_fld, 'pending', 'paid', 'shipped', 'completed', 'cancelled')
         ");
-        $stmt->execute();
-        $groups = array_map(
+        $statusStmt->execute();
+        $statusBreakdown = array_map(
             static fn(array $row): array => [
                 'status' => $row['status'],
                 'total_orders' => intval($row['total_orders']),
                 'total_amount' => floatval($row['total_amount']),
             ],
-            $stmt->fetchAll(PDO::FETCH_ASSOC)
+            $statusStmt->fetchAll(PDO::FETCH_ASSOC)
         );
 
-        apiResponse(200, ['success' => true, 'report' => $groups]);
+        $dailyStmt = dbPrepare($conn, "
+            SELECT DATE(order_created_fld) AS sales_date,
+                   COUNT(*) AS order_count,
+                   COALESCE(SUM(total_amount_fld), 0) AS total_sales
+            FROM orders_tbl
+            WHERE order_status_fld IN ('paid', 'shipped', 'completed')
+            GROUP BY DATE(order_created_fld)
+            ORDER BY sales_date DESC
+            LIMIT 7
+        ");
+        $dailyStmt->execute();
+        $dailySales = array_reverse(array_map(
+            static fn(array $row): array => [
+                'date' => $row['sales_date'],
+                'order_count' => intval($row['order_count']),
+                'total_sales' => floatval($row['total_sales']),
+            ],
+            $dailyStmt->fetchAll(PDO::FETCH_ASSOC)
+        ));
+
+        $monthlyStmt = dbPrepare($conn, "
+            SELECT DATE_FORMAT(order_created_fld, '%Y-%m') AS sales_month,
+                   COUNT(*) AS order_count,
+                   COALESCE(SUM(total_amount_fld), 0) AS total_sales
+            FROM orders_tbl
+            WHERE order_status_fld IN ('paid', 'shipped', 'completed')
+            GROUP BY DATE_FORMAT(order_created_fld, '%Y-%m')
+            ORDER BY sales_month DESC
+            LIMIT 6
+        ");
+        $monthlyStmt->execute();
+        $monthlySales = array_reverse(array_map(
+            static fn(array $row): array => [
+                'month' => $row['sales_month'],
+                'order_count' => intval($row['order_count']),
+                'total_sales' => floatval($row['total_sales']),
+            ],
+            $monthlyStmt->fetchAll(PDO::FETCH_ASSOC)
+        ));
+
+        $topBooksStmt = dbPrepare($conn, "
+            SELECT b.book_id,
+                   b.title_fld AS title,
+                   b.author_fld AS author,
+                   SUM(oi.quantity_fld) AS total_quantity_sold,
+                   SUM(oi.quantity_fld * oi.price_at_purchase_fld) AS total_revenue
+            FROM order_items_tbl oi
+            JOIN orders_tbl o ON o.order_id = oi.order_id
+            JOIN books_tbl b ON b.book_id = oi.book_id
+            WHERE o.order_status_fld IN ('paid', 'shipped', 'completed')
+            GROUP BY b.book_id, b.title_fld, b.author_fld
+            ORDER BY total_revenue DESC, total_quantity_sold DESC
+            LIMIT 5
+        ");
+        $topBooksStmt->execute();
+        $topBooks = array_map(
+            static fn(array $row): array => [
+                'book_id' => intval($row['book_id']),
+                'title' => $row['title'],
+                'author' => $row['author'],
+                'total_quantity_sold' => intval($row['total_quantity_sold']),
+                'total_revenue' => floatval($row['total_revenue']),
+            ],
+            $topBooksStmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+
+        apiResponse(200, [
+            'success' => true,
+            'report' => [
+                'summary' => [
+                    'successful_order_count' => intval($summary['successful_order_count']),
+                    'total_sales' => floatval($summary['total_sales']),
+                    'average_order_value' => floatval($summary['average_order_value']),
+                    'highest_order_value' => floatval($summary['highest_order_value']),
+                    'lowest_order_value' => floatval($summary['lowest_order_value']),
+                    'paying_customers' => intval($summary['paying_customers']),
+                ],
+                'status_breakdown' => $statusBreakdown,
+                'daily_sales' => $dailySales,
+                'monthly_sales' => $monthlySales,
+                'top_books' => $topBooks,
+            ],
+        ]);
+    }
+
+    if ($resource === 'orders' && $method === 'GET') {
+        $summaryStmt = dbPrepare($conn, "
+            SELECT COUNT(*) AS total_orders,
+                   SUM(CASE WHEN order_status_fld = 'pending' THEN 1 ELSE 0 END) AS pending_orders,
+                   SUM(CASE WHEN order_status_fld = 'paid' THEN 1 ELSE 0 END) AS paid_orders,
+                   SUM(CASE WHEN order_status_fld = 'shipped' THEN 1 ELSE 0 END) AS shipped_orders,
+                   SUM(CASE WHEN order_status_fld = 'completed' THEN 1 ELSE 0 END) AS completed_orders,
+                   SUM(CASE WHEN order_status_fld = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_orders
+            FROM orders_tbl
+            WHERE order_status_fld != 'cart'
+        ");
+        $summaryStmt->execute();
+        $summary = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [
+            'total_orders' => 0,
+            'pending_orders' => 0,
+            'paid_orders' => 0,
+            'shipped_orders' => 0,
+            'completed_orders' => 0,
+            'cancelled_orders' => 0,
+        ];
+
+        $averageItemsStmt = dbPrepare($conn, "
+            SELECT COALESCE(AVG(item_count), 0) AS average_items_per_order
+            FROM (
+                SELECT COUNT(*) AS item_count
+                FROM order_items_tbl oi
+                JOIN orders_tbl o ON o.order_id = oi.order_id
+                WHERE o.order_status_fld != 'cart'
+                GROUP BY oi.order_id
+            ) AS order_item_counts
+        ");
+        $averageItemsStmt->execute();
+        $averageItems = $averageItemsStmt->fetch(PDO::FETCH_ASSOC) ?: ['average_items_per_order' => 0];
+
+        $statusStmt = dbPrepare($conn, "
+            SELECT order_status_fld AS status,
+                   COUNT(*) AS total_orders,
+                   COALESCE(SUM(total_amount_fld), 0) AS total_amount
+            FROM orders_tbl
+            WHERE order_status_fld != 'cart'
+            GROUP BY order_status_fld
+            ORDER BY FIELD(order_status_fld, 'pending', 'paid', 'shipped', 'completed', 'cancelled')
+        ");
+        $statusStmt->execute();
+        $statusBreakdown = array_map(
+            static fn(array $row): array => [
+                'status' => $row['status'],
+                'total_orders' => intval($row['total_orders']),
+                'total_amount' => floatval($row['total_amount']),
+            ],
+            $statusStmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+
+        $topCustomersStmt = dbPrepare($conn, "
+            SELECT ua.account_id,
+                   un.fname_fld AS fname,
+                   un.lname_fld AS lname,
+                   ua.email,
+                   COUNT(o.order_id) AS total_orders,
+                   COALESCE(SUM(o.total_amount_fld), 0) AS total_amount
+            FROM orders_tbl o
+            JOIN user_account_tbl ua ON ua.account_id = o.account_id
+            JOIN user_name_tbl un ON un.name_id = ua.name_id
+            WHERE o.order_status_fld != 'cart'
+            GROUP BY ua.account_id, un.fname_fld, un.lname_fld, ua.email
+            ORDER BY total_orders DESC, total_amount DESC
+            LIMIT 5
+        ");
+        $topCustomersStmt->execute();
+        $topCustomers = array_map(
+            static fn(array $row): array => [
+                'account_id' => intval($row['account_id']),
+                'fname' => $row['fname'],
+                'lname' => $row['lname'],
+                'email' => $row['email'],
+                'total_orders' => intval($row['total_orders']),
+                'total_amount' => floatval($row['total_amount']),
+            ],
+            $topCustomersStmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+
+        $topBooksStmt = dbPrepare($conn, "
+            SELECT b.book_id,
+                   b.title_fld AS title,
+                   b.author_fld AS author,
+                   SUM(oi.quantity_fld) AS total_quantity_ordered
+            FROM order_items_tbl oi
+            JOIN orders_tbl o ON o.order_id = oi.order_id
+            JOIN books_tbl b ON b.book_id = oi.book_id
+            WHERE o.order_status_fld NOT IN ('cancelled', 'cart')
+            GROUP BY b.book_id, b.title_fld, b.author_fld
+            ORDER BY total_quantity_ordered DESC, b.book_id ASC
+            LIMIT 5
+        ");
+        $topBooksStmt->execute();
+        $topBooksByQuantity = array_map(
+            static fn(array $row): array => [
+                'book_id' => intval($row['book_id']),
+                'title' => $row['title'],
+                'author' => $row['author'],
+                'total_quantity_ordered' => intval($row['total_quantity_ordered']),
+            ],
+            $topBooksStmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+
+        $recentOrdersStmt = dbPrepare($conn, "
+            SELECT o.order_id,
+                   o.account_id,
+                   un.fname_fld AS fname,
+                   un.lname_fld AS lname,
+                   o.order_status_fld AS status,
+                   o.total_amount_fld AS total_amount,
+                   o.order_created_fld AS created_at
+            FROM orders_tbl o
+            JOIN user_account_tbl ua ON ua.account_id = o.account_id
+            JOIN user_name_tbl un ON un.name_id = ua.name_id
+            WHERE o.order_status_fld != 'cart'
+            ORDER BY o.order_created_fld DESC, o.order_id DESC
+            LIMIT 3
+        ");
+        $recentOrdersStmt->execute();
+        $recentOrders = array_map(
+            static fn(array $row): array => [
+                'order_id' => intval($row['order_id']),
+                'account_id' => intval($row['account_id']),
+                'customer_name' => trim($row['fname'] . ' ' . $row['lname']),
+                'status' => $row['status'],
+                'total_amount' => floatval($row['total_amount']),
+                'created_at' => $row['created_at'],
+            ],
+            $recentOrdersStmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+
+        $totalOrders = max(intval($summary['total_orders']), 1);
+        $cancelledOrders = intval($summary['cancelled_orders']);
+        $completedOrders = intval($summary['completed_orders']);
+
+        apiResponse(200, [
+            'success' => true,
+            'report' => [
+                'summary' => [
+                    'total_orders' => intval($summary['total_orders']),
+                    'pending_orders' => intval($summary['pending_orders']),
+                    'paid_orders' => intval($summary['paid_orders']),
+                    'shipped_orders' => intval($summary['shipped_orders']),
+                    'completed_orders' => intval($summary['completed_orders']),
+                    'cancelled_orders' => intval($summary['cancelled_orders']),
+                    'cancellation_rate' => round(($cancelledOrders / $totalOrders) * 100, 2),
+                    'completion_rate' => round(($completedOrders / $totalOrders) * 100, 2),
+                    'average_items_per_order' => round(floatval($averageItems['average_items_per_order'] ?? 0), 2),
+                ],
+                'status_breakdown' => $statusBreakdown,
+                'top_customers' => $topCustomers,
+                'top_books_by_quantity' => $topBooksByQuantity,
+                'recent_orders' => $recentOrders,
+            ],
+        ]);
     }
 
     apiResponse(404, ['success' => false, 'message' => 'Report endpoint not found']);

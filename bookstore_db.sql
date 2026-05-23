@@ -162,6 +162,18 @@ CREATE TABLE `order_items_tbl` (
   `price_at_purchase_fld` decimal(10,2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Table structure for table `order_delivery_tbl`
+--
+
+CREATE TABLE `order_delivery_tbl` (
+  `order_id` int(11) NOT NULL,
+  `contact_phone_encrypted` text DEFAULT NULL,
+  `contact_phone_iv` text DEFAULT NULL,
+  `contact_phone_tag` text DEFAULT NULL,
+  `address_snapshot_fld` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- --------------------------------------------------------
 
 --
@@ -297,6 +309,12 @@ ALTER TABLE `order_items_tbl`
   ADD KEY `idx_items_book_id` (`book_id`);
 
 --
+-- Indexes for table `order_delivery_tbl`
+--
+ALTER TABLE `order_delivery_tbl`
+  ADD PRIMARY KEY (`order_id`);
+
+--
 -- Indexes for table `reviews_tbl`
 --
 ALTER TABLE `reviews_tbl`
@@ -400,6 +418,12 @@ ALTER TABLE `orders_tbl`
 ALTER TABLE `order_items_tbl`
   ADD CONSTRAINT `fk_items_book` FOREIGN KEY (`book_id`) REFERENCES `books_tbl` (`book_id`) ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_items_order` FOREIGN KEY (`order_id`) REFERENCES `orders_tbl` (`order_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `order_delivery_tbl`
+--
+ALTER TABLE `order_delivery_tbl`
+  ADD CONSTRAINT `fk_order_delivery_order` FOREIGN KEY (`order_id`) REFERENCES `orders_tbl` (`order_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `reviews_tbl`

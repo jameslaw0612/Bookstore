@@ -10,8 +10,10 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, ClipboardList, LogOut } from 'lucide-react';
+import { BarChart3, BookOpen, ClipboardList, LogOut } from 'lucide-react';
 import ManageBooks from './ManageBooks';
+import AdminOrders from './AdminOrders';
+import AdminReports from './AdminReports';
 import '../styles/AdminDashboard.css';
 import sideLogo from '../assets/Web_Logo/side version.png';
 
@@ -95,7 +97,9 @@ export default function AdminDashboard() {
       case '/admin/books':
         return <ManageBooks />;
       case '/admin/orders':
-        return <div className="orders-placeholder"><h2><ClipboardList size={24} /> View Orders</h2><p>Orders page coming soon...</p></div>;
+        return <AdminOrders />;
+      case '/admin/reports':
+        return <AdminReports />;
       default:
         return <ManageBooks />;
     }
@@ -156,6 +160,15 @@ export default function AdminDashboard() {
                   >
                     <span className="nav-icon"><ClipboardList size={18} /></span>
                     <span className="nav-label">View Orders</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`nav-item ${location.pathname === '/admin/reports' ? 'active' : ''}`}
+                    onClick={() => handleNavigation('/admin/reports')}
+                  >
+                    <span className="nav-icon"><BarChart3 size={18} /></span>
+                    <span className="nav-label">Report</span>
                   </button>
                 </li>
               </ul>

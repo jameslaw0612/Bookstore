@@ -54,7 +54,7 @@ export default function UserTopBar({
       label: 'Transactions',
       icon: <ReceiptText size={22} strokeWidth={1.8} />,
       to: '/transactions',
-      badgeCount: transactionCount,
+      badgeCount: 0,
     },
     {
       key: 'cart',

@@ -107,6 +107,17 @@ CREATE TABLE IF NOT EXISTS order_items_tbl (
     FOREIGN KEY (book_id) REFERENCES books_tbl(book_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS order_delivery_tbl (
+  order_id INT PRIMARY KEY,
+  contact_phone_encrypted TEXT NULL,
+  contact_phone_iv VARCHAR(255) NULL,
+  contact_phone_tag VARCHAR(255) NULL,
+  address_snapshot_fld TEXT NULL,
+  CONSTRAINT fk_order_delivery_order
+    FOREIGN KEY (order_id) REFERENCES orders_tbl(order_id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS reviews_tbl (
   review_id INT AUTO_INCREMENT PRIMARY KEY,
   account_id INT NOT NULL,

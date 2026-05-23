@@ -466,7 +466,7 @@
 .order-table__head,
 .order-table__row {
   display: grid;
-  grid-template-columns: minmax(240px, 2.2fr) minmax(90px, 0.8fr) minmax(80px, 0.65fr) minmax(110px, 0.9fr) minmax(110px, 0.85fr) minmax(150px, 1fr);
+  grid-template-columns: minmax(240px, 2.2fr) minmax(90px, 0.8fr) minmax(80px, 0.65fr) minmax(110px, 0.9fr) minmax(110px, 0.85fr) minmax(150px, 1fr) minmax(120px, 0.9fr);
   gap: 1rem;
   align-items: center;
 }
@@ -536,7 +536,8 @@
 
 .order-table__value,
 .order-table__status,
-.order-table__date {
+.order-table__date,
+.order-table__action {
   color: #20365f;
   font-weight: 700;
   line-height: 1.45;
@@ -544,12 +545,17 @@
 
 .order-table__status {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.55rem;
+  align-items: center;
+}
+
+.order-table__action {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .order-cancel-btn,
+.order-complete-btn,
 .order-notice-btn {
   display: inline-flex;
   align-items: center;
@@ -561,14 +567,22 @@
   font-weight: 700;
 }
 
-.order-cancel-btn {
+.order-cancel-btn,
+.order-complete-btn {
   padding: 0.55rem 0.85rem;
-  background: #fff7f2;
-  color: #9a3412;
-  border: 1px solid #eadfd2;
+  background: #20365f;
+  color: #fff;
+  border: 1px solid #20365f;
 }
 
-.order-cancel-btn:disabled {
+.order-cancel-btn:hover:not(:disabled),
+.order-complete-btn:hover:not(:disabled),
+.order-notice-btn:hover:not(:disabled) {
+  background: #162a4b;
+}
+
+.order-cancel-btn:disabled,
+.order-complete-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
@@ -605,6 +619,11 @@
 .order-status--completed {
   background: #dbeafe;
   color: #1d4ed8;
+}
+
+.order-status--shipped {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
 .order-status--cancelled {
@@ -738,6 +757,7 @@
   padding: 0.75rem 1rem;
   background: #20365f;
   color: #fff;
+  border-radius: 999px;
 }
 
 @keyframes user-page-spin {
@@ -800,7 +820,8 @@
 
   .order-table__value,
   .order-table__status,
-  .order-table__date {
+  .order-table__date,
+  .order-table__action {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
@@ -808,7 +829,8 @@
 
   .order-table__value::before,
   .order-table__status::before,
-  .order-table__date::before {
+  .order-table__date::before,
+  .order-table__action::before {
     color: #8a5b2f;
     font-size: 0.74rem;
     font-weight: 800;
@@ -834,6 +856,10 @@
 
   .order-table__date::before {
     content: 'Bought';
+  }
+
+  .order-table__action::before {
+    content: 'Action';
   }
 }
 
