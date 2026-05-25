@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, ShoppingBag } from 'lucide-react'
+import BookCoverImage from './BookCoverImage'
 import type { SessionUserAddress } from '../utils/session'
 import { formatCurrency } from '../utils/format'
 import '../styles/UserCartDrawer.css'
@@ -216,17 +217,11 @@ export default function UserCartDrawer({
                   </label>
 
                   <div className="cart-drawer__item-art">
-                    {item.book_cover_image ? (
-                      <img
-                        src={`/backend/uploads/books/${item.book_cover_image}`}
-                        alt={item.title}
-                        className="cart-drawer__item-image"
-                      />
-                    ) : (
-                      <div className="cart-drawer__item-fallback">
-                        <ShoppingBag size={20} />
-                      </div>
-                    )}
+                    <BookCoverImage
+                      src={item.book_cover_image ? `/backend/uploads/books/${item.book_cover_image}` : null}
+                      alt={item.title}
+                      className="cart-drawer__item-image"
+                    />
                   </div>
 
                   <div className="cart-drawer__item-copy">

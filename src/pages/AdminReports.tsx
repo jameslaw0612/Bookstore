@@ -337,14 +337,6 @@ export default function AdminReports() {
 
   return (
     <section className="admin-report-page">
-      <div className="admin-orders-hero admin-orders-hero--report">
-        <div>
-          <p className="admin-orders-eyebrow">Report</p>
-          <h2>Sales and order analytics</h2>
-          <p>Monitor bookstore performance with live sales trends, order health, customer activity, and top-performing books.</p>
-        </div>
-      </div>
-
       <section className="admin-report-section">
         <div className="admin-report-section__header">
           <div>

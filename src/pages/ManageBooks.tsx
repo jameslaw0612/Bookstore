@@ -9,9 +9,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, Book, Pencil, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Pencil, Trash2 } from 'lucide-react';
+import BookCoverImage from '../components/BookCoverImage';
 import ImageUpload from '../components/ImageUpload';
 import '../styles/ManageBooks.css';
+import { parseApiResponse } from '../utils/responseCrypto';
 
 interface Category {
   category_id: number;
@@ -80,6 +82,11 @@ export default function ManageBooks() {
   const [editImageOffsetY, setEditImageOffsetY] = useState(0);
   const [editImageResetTrigger, setEditImageResetTrigger] = useState(0);
 
+  const showError = (message: string) => {
+    setError(message);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   /**
    * EFFECT: Fetch categories on component mount
    */
@@ -110,7 +117,7 @@ export default function ManageBooks() {
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success) {
         setCategories(data.categories);
@@ -143,7 +150,7 @@ export default function ManageBooks() {
         throw new Error(`Server error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success) {
         setSuccess(`Initialized ${data.created.length} new categories`);
@@ -174,7 +181,7 @@ export default function ManageBooks() {
         throw new Error(`Server error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success) {
         setBooks(data.books);
@@ -195,35 +202,35 @@ export default function ManageBooks() {
    */
   const validateForm = (): boolean => {
     if (!title.trim()) {
-      setError('Title is required');
+      showError('Title is required');
       return false;
     }
     if (!author.trim()) {
-      setError('Author is required');
+      showError('Author is required');
       return false;
     }
     if (!description.trim()) {
-      setError('Description is required');
+      showError('Description is required');
       return false;
     }
     if (!isbn.trim()) {
-      setError('ISBN is required');
+      showError('ISBN is required');
       return false;
     }
     if (!price || parseFloat(price) <= 0) {
-      setError('Valid price is required');
+      showError('Valid price is required');
       return false;
     }
     if (!stockQuantity || parseInt(stockQuantity) < 0) {
-      setError('Valid stock quantity is required');
+      showError('Valid stock quantity is required');
       return false;
     }
     if (selectedCategories.length === 0) {
-      setError('At least one category is required');
+      showError('At least one category is required');
       return false;
     }
     if (!bookCoverImage) {
-      setError('Book cover image is required');
+      showError('Book cover image is required');
       return false;
     }
     return true;
@@ -264,7 +271,7 @@ export default function ManageBooks() {
         }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success) {
         setSuccess('Book created successfully!');
@@ -290,10 +297,10 @@ export default function ManageBooks() {
         // Scroll to success message
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setError(data.message || 'Failed to create book');
+        showError(data.message || 'Failed to create book');
       }
     } catch (err) {
-      setError('Error creating book: ' + err);
+      showError('Error creating book: ' + err);
       console.error('Error:', err);
     } finally {
       setLoading(false);
@@ -369,7 +376,7 @@ export default function ManageBooks() {
         body: JSON.stringify({ book_id: deleteBookId }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success) {
         setSuccess(`Book "${deleteBookTitle}" deleted successfully!`);
@@ -402,7 +409,7 @@ export default function ManageBooks() {
         throw new Error(`Server error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success && data.book) {
         const freshBook = data.book;
@@ -472,12 +479,12 @@ export default function ManageBooks() {
 
       if (!response.ok) {
         console.error(`HTTP error! status: ${response.status}`);
-        const errorText = await response.text();
-        console.error("Error response body:", errorText);
+        const errorPayload = await parseApiResponse<any>(response);
+        console.error("Error response body:", errorPayload);
         return;
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
       console.log("Categories response data:", data);
 
       if (data.success && Array.isArray(data.categories)) {
@@ -582,7 +589,7 @@ export default function ManageBooks() {
         }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       if (data.success) {
         setSuccess('Book updated successfully!');
@@ -824,17 +831,11 @@ export default function ManageBooks() {
                   {books.map((book) => (
                     <div key={book.book_id} className="book-card">
                       <div className="book-cover-wrap">
-                        {book.book_cover_image ? (
-                          <img
-                            src={`/backend/uploads/books/${book.book_cover_image}`}
-                            alt={book.title}
-                            className="book-cover-img"
-                          />
-                        ) : (
-                          <div className="book-cover-empty">
-                            <Book size={48} />
-                          </div>
-                        )}
+                        <BookCoverImage
+                          src={book.book_cover_image ? `/backend/uploads/books/${book.book_cover_image}` : null}
+                          alt={book.title}
+                          className="book-cover-img"
+                        />
                       </div>
 
                       <div className="book-meta">

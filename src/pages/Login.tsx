@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, BookOpenText, Eye, EyeOff, Loader2, ShieldCheck, Sparkles } from 'lucide-react'
+import { AlertCircle, BookOpenText, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
 import '../styles/Auth.css'
+import { parseApiResponse } from '../utils/responseCrypto'
 
 export default function Login() {
   const [activeTab, setActiveTab] = useState<'user' | 'admin'>('user')
@@ -19,25 +20,6 @@ export default function Login() {
 
   const navigate = useNavigate()
 
-  const parseJsonResponse = async (response: Response) => {
-    const rawText = await response.text()
-    const trimmedText = rawText.trim()
-
-    try {
-      return JSON.parse(trimmedText)
-    } catch {
-      if (trimmedText.includes('Failed to open stream: No such file or directory')) {
-        throw new Error('PHP could not find the backend router. Start the PHP server from the `bookstore-app` folder with `php -S 127.0.0.1:8001 router.php`.')
-      }
-
-      if (trimmedText.startsWith('<!doctype') || trimmedText.startsWith('<html')) {
-        throw new Error('Backend returned HTML instead of JSON. Check if the PHP server is running and the Vite proxy is pointing to the correct backend URL.')
-      }
-
-      throw new Error(`Backend returned an invalid response: ${trimmedText.slice(0, 120)}`)
-    }
-  }
-
   const handleUserSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setUserError('')
@@ -50,7 +32,7 @@ export default function Login() {
         body: JSON.stringify({ email: userEmail, password: userPassword }),
       })
 
-      const data = await parseJsonResponse(response)
+      const data = await parseApiResponse<any>(response)
 
       if (data.success && data.token) {
         localStorage.setItem('authToken', data.token)
@@ -82,7 +64,7 @@ export default function Login() {
         body: JSON.stringify({ email: adminEmail, password: adminPassword }),
       })
 
-      const data = await parseJsonResponse(response)
+      const data = await parseApiResponse<any>(response)
 
       if (data.success && data.token) {
         localStorage.setItem('adminAuthToken', data.token)
@@ -110,11 +92,6 @@ export default function Login() {
     <div className="auth-shell">
       <div className="auth-layout auth-layout--wide">
         <section className="auth-panel auth-panel--brand">
-          <div className="auth-kicker">
-            <Sparkles size={16} />
-            <span>{isUserView ? 'Customer access portal' : 'Protected admin access'}</span>
-          </div>
-
           <h1>{isUserView ? 'Welcome back to your bookstore account.' : 'Manage inventory, users, and reports securely.'}</h1>
           <p>
             {isUserView

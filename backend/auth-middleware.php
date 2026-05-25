@@ -58,7 +58,8 @@ function authenticate() {
     // Check if token exists and is not expired
     $stmt = dbPrepare($conn, "
         SELECT t.account_id, t.expires_at, ua.role, 
-               un.fname_fld, un.lname_fld, ua.email
+               un.fname_fld, un.lname_fld,
+               ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash
         FROM user_tokens_tbl t
         JOIN user_account_tbl ua ON t.account_id = ua.account_id
         JOIN user_name_tbl un ON ua.name_id = un.name_id
@@ -90,7 +91,7 @@ function authenticate() {
         'account_id' => $tokenData['account_id'],
         'fname' => $tokenData['fname_fld'],
         'lname' => $tokenData['lname_fld'],
-        'email' => $tokenData['email'],
+        'email' => decryptEmailFromRow($tokenData),
         'role' => $tokenData['role']
     ];
 }

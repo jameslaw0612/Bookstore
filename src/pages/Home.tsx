@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Book, BookX, ChevronRight, LayoutGrid, List } from 'lucide-react'
+import { BookX, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import BookDetailsModal from '../components/BookDetailsModal'
+import BookCoverImage from '../components/BookCoverImage'
 import UserCartDrawer from '../components/UserCartDrawer'
 import UserTopBar from '../components/UserTopBar'
 import { apiRequest, getStoredUser, setStoredUser, type SessionUser } from '../utils/session'
@@ -547,7 +548,11 @@ export default function Home() {
                   No books found matching your filters.
                 </p>
                 {(selectedCategories.length > 0 || filterPriceMin !== priceMin || filterPriceMax !== priceMax) && (
-                  <button type="button" className="reset-filters-btn" onClick={handleResetFilters}>
+                  <button
+                    type="button"
+                    className="reset-filters-btn reset-filters-btn--compact"
+                    onClick={handleResetFilters}
+                  >
                     Reset Filters
                   </button>
                 )}
@@ -562,17 +567,11 @@ export default function Home() {
                     style={{ cursor: 'pointer' }}
                   >
                     <div className="book-cover-wrap">
-                      {book.book_cover_image ? (
-                        <img
-                          src={`/backend/uploads/books/${book.book_cover_image}`}
-                          alt={book.title}
-                          className="book-cover-img"
-                        />
-                      ) : (
-                        <div className="book-cover-empty">
-                          <Book size={48} />
-                        </div>
-                      )}
+                      <BookCoverImage
+                        src={book.book_cover_image ? `/backend/uploads/books/${book.book_cover_image}` : null}
+                        alt={book.title}
+                        className="book-cover-img"
+                      />
                     </div>
                     <div className="book-meta">
                       <h4 className="book-title">{book.title}</h4>
@@ -599,17 +598,11 @@ export default function Home() {
                     style={{ cursor: 'pointer' }}
                   >
                     <div className="book-list-cover-wrap">
-                      {book.book_cover_image ? (
-                        <img
-                          src={`/backend/uploads/books/${book.book_cover_image}`}
-                          alt={book.title}
-                          className="book-list-cover-img"
-                        />
-                      ) : (
-                        <div className="book-list-cover-empty">
-                          <Book size={40} />
-                        </div>
-                      )}
+                      <BookCoverImage
+                        src={book.book_cover_image ? `/backend/uploads/books/${book.book_cover_image}` : null}
+                        alt={book.title}
+                        className="book-list-cover-img"
+                      />
                     </div>
                     <div className="book-list-info">
                       <h4 className="book-title">{book.title}</h4>

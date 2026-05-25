@@ -246,6 +246,13 @@
   background: linear-gradient(135deg, #fffaf3 0%, #ffffff 100%);
 }
 
+.admin-orders-hero__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
 .admin-orders-eyebrow {
   margin: 0 0 0.5rem;
   font-size: 0.78rem;
@@ -314,6 +321,13 @@
   border: 1px solid #ece7dd;
   border-radius: 20px;
   background: #fffaf4;
+}
+
+.admin-orders-toolbar--hero {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .admin-orders-toolbar__group {

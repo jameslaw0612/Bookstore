@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = readEncryptedJsonRequestBody();
 
         // Log received data for debugging
         error_log("Received update-book request with data: " . json_encode($data));

@@ -30,6 +30,8 @@ define('DB_NAME', configRead('DB_NAME', 'bookstore_db'));
 define('DB_USER', configRead('DB_USER', 'root'));
 define('DB_PASSWORD', configRead('DB_PASSWORD', ''));
 
+$defaultResponseEncryptionKeyHex = '4fa8b79e1cc2457f90d4a81e5327b6c98d13ef4076ab2c5119d8e4f3a6bc720d';
+
 $keyHex = configRead('ENCRYPTION_KEY_HEX');
 if ($keyHex === '') {
     throw new RuntimeException(
@@ -46,3 +48,11 @@ define('ENCRYPTION_KEY', $key);
 define('ENCRYPTION_CIPHER', 'aes-256-gcm');
 define('ENCRYPTION_IV_LENGTH', 12);
 define('ENCRYPTION_TAG_LENGTH', 16);
+
+$responseKeyHex = configRead('RESPONSE_ENCRYPTION_KEY_HEX', $defaultResponseEncryptionKeyHex);
+$responseKey = hex2bin($responseKeyHex);
+if ($responseKey === false || strlen($responseKey) !== 32) {
+    throw new RuntimeException('Invalid RESPONSE_ENCRYPTION_KEY_HEX. Expected a 64-character hexadecimal string.');
+}
+
+define('RESPONSE_ENCRYPTION_KEY', $responseKey);

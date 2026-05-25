@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import '../styles/Auth.css';
+import { parseApiResponse } from '../utils/responseCrypto';
 
 export default function AdminLogin() {
   // Use useState hook (React state management) to manage form fields and UI states
@@ -44,7 +45,7 @@ export default function AdminLogin() {
       });
 
       // Use .json() method to parse the JSON response from backend
-      const data = await response.json();
+      const data = await parseApiResponse<any>(response);
 
       // Check if login was successful
       if (data.success && data.token) {

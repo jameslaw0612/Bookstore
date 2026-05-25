@@ -1,14 +1,32 @@
 {
     "13": {
-        "book_cover_original_image": "book_original_1778319690_a8fb15f4ae1710c8.jpeg",
-        "image_scale": 1,
-        "image_offset_x": 36,
-        "image_offset_y": -12
+        "book_cover_original_image": "book_original_1779694750_11242b276a7bfd3f.png",
+        "image_scale": 0.5,
+        "image_offset_x": 218,
+        "image_offset_y": -75
     },
     "11": {
         "book_cover_original_image": "book_original_1779310683_9c59dd026e245cd8.jpeg",
         "image_scale": 1,
         "image_offset_x": -122,
         "image_offset_y": -19
+    },
+    "17": {
+        "book_cover_original_image": "book_original_1779590386_69fbe83b1824675f.png",
+        "image_scale": 0.5,
+        "image_offset_x": 124,
+        "image_offset_y": -86
+    },
+    "12": {
+        "book_cover_original_image": "book_original_1779694929_692a53fef4261e12.png",
+        "image_scale": 0.5,
+        "image_offset_x": 226,
+        "image_offset_y": 12
+    },
+    "18": {
+        "book_cover_original_image": "book_original_1779695392_56ef46878cd9c912.png",
+        "image_scale": 1,
+        "image_offset_x": 20,
+        "image_offset_y": -157
     }
 }

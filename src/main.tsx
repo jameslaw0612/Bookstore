@@ -2,6 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { installEncryptedFetchTransport } from './utils/responseCrypto'
+
+installEncryptedFetchTransport()
 
 // Use document.getElementById('root') to get the DOM element with id="root" from index.html
 // The ! (non-null assertion) tells TypeScript this element definitely exists

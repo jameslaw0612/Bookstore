@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, Minus, Plus, ShoppingCart, Book as BookIcon } from 'lucide-react'
+import { X, Minus, Plus, ShoppingCart } from 'lucide-react'
+import BookCoverImage from './BookCoverImage'
 import { formatCurrency } from '../utils/format'
 import '../styles/BookDetailsModal.css'
 
@@ -116,16 +117,10 @@ export default function BookDetailsModal({
               ) : (
                 <span className="stock-badge out-of-stock bd-badge">Out of Stock</span>
               )}
-              {book.book_cover_image ? (
-                <img
-                  src={`/backend/uploads/books/${book.book_cover_image}`}
-                  alt={book.title}
-                />
-              ) : (
-                <div className="empty-cover">
-                  <BookIcon size={64} />
-                </div>
-              )}
+              <BookCoverImage
+                src={book.book_cover_image ? `/backend/uploads/books/${book.book_cover_image}` : null}
+                alt={book.title}
+              />
             </div>
           </div>
 
@@ -208,11 +203,10 @@ export default function BookDetailsModal({
                   onClick={() => onSelectBook(relatedBook)}
                 >
                   <div className="related-img">
-                    {relatedBook.book_cover_image ? (
-                      <img src={`/backend/uploads/books/${relatedBook.book_cover_image}`} alt={relatedBook.title} />
-                    ) : (
-                      <div className="related-empty-img"><BookIcon size={32} /></div>
-                    )}
+                    <BookCoverImage
+                      src={relatedBook.book_cover_image ? `/backend/uploads/books/${relatedBook.book_cover_image}` : null}
+                      alt={relatedBook.title}
+                    />
                   </div>
                   <h4 className="related-title" title={relatedBook.title}>{relatedBook.title}</h4>
                   <p className="related-author">{relatedBook.author}</p>

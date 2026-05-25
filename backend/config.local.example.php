@@ -8,3 +8,6 @@ define('LOCAL_DB_PASSWORD', '');
 
 // Generate a real key with: openssl rand -hex 32
 define('LOCAL_ENCRYPTION_KEY_HEX', 'replace-with-64-character-hex-key');
+
+// Optional: override the frontend-visible transport wrapper key used for {"a":"..."} API responses.
+define('LOCAL_RESPONSE_ENCRYPTION_KEY_HEX', '4fa8b79e1cc2457f90d4a81e5327b6c98d13ef4076ab2c5119d8e4f3a6bc720d');

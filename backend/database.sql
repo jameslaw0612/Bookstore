@@ -15,7 +15,11 @@ CREATE TABLE IF NOT EXISTS user_name_tbl (
 CREATE TABLE IF NOT EXISTS user_account_tbl (
   account_id INT AUTO_INCREMENT PRIMARY KEY,
   name_id INT NOT NULL,
-  email VARCHAR(191) NOT NULL UNIQUE,
+  email VARCHAR(191) NULL,
+  email_encrypted TEXT NULL,
+  email_iv VARCHAR(255) NULL,
+  email_tag VARCHAR(255) NULL,
+  email_hash CHAR(64) NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   phone_encrypted TEXT NULL,
   phone_iv VARCHAR(255) NULL,
@@ -199,5 +203,9 @@ INSERT INTO user_account_tbl (
 )
 ON DUPLICATE KEY UPDATE
   email = VALUES(email),
+  email_encrypted = NULL,
+  email_iv = NULL,
+  email_tag = NULL,
+  email_hash = NULL,
   password_hash = VALUES(password_hash),
   role = VALUES(role);

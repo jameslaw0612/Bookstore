@@ -20,23 +20,8 @@
   padding: 2rem 0;
 }
 
-.landing-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 0.9rem;
-  border: 1px solid rgba(32, 54, 95, 0.14);
-  border-radius: 999px;
-  color: #8a5b2f;
-  background: rgba(255, 255, 255, 0.76);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .landing-hero__copy h1 {
-  margin: 1.25rem 0 1rem;
+  margin: 0 0 1rem;
   color: #18263e;
   font-size: clamp(3rem, 6vw, 5.1rem);
   line-height: 0.98;

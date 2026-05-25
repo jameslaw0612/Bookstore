@@ -37,7 +37,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Use file_get_contents("php://input") to read raw HTTP request body stream
         // Use json_decode() with true parameter to convert JSON string to PHP associative array
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = readEncryptedJsonRequestBody();
 
         /**
          * STEP 1: Validate all required fields are present
@@ -55,9 +55,10 @@ try {
         // Extract form data from request array using bracket notation syntax
         $fname = $data['fname'];        // First name
         $lname = $data['lname'];        // Last name
-        $email = $data['email'];        // Email address
+        $email = EncryptionUtil::normalizeEmail((string) $data['email']);        // Email address
         $phone = $data['phone'];        // Phone number
         $password = $data['password'];  // Password (will be hashed)
+        $emailHash = EncryptionUtil::hashEmailForLookup($email);
 
         /**
          * STEP 2: Check if email is already registered
@@ -65,8 +66,8 @@ try {
          */
         // Use $conn->prepare() to create prepared statement with :email parameter placeholder
         // Prepared statements prevent SQL injection attacks
-        $checkStmt = dbPrepare($conn, "SELECT account_id FROM user_account_tbl WHERE email = :email");
-        $checkStmt->execute([':email' => $email]);
+        $checkStmt = dbPrepare($conn, "SELECT account_id FROM user_account_tbl WHERE email_hash = :email_hash");
+        $checkStmt->execute([':email_hash' => $emailHash]);
 
         if ($checkStmt->fetch()) {
             // Email already exists in database
@@ -112,27 +113,37 @@ try {
         // Call static method EncryptionUtil::encryptForStorage() to encrypt phone
         // Returns associative array with 'encrypted', 'iv', 'tag' keys
         $encryptedPhoneData = EncryptionUtil::encryptForStorage($phone);
+        $encryptedEmailData = EncryptionUtil::encryptForStorage($email);
 
         /**
          * STEP 6: Insert user account into user_account_tbl table
          * This table stores:
          * - name_id: Foreign key reference to user_name_tbl
-         * - email: User's email (unique)
+         * - email_encrypted, email_iv, email_tag: Encrypted email components
+         * - email_hash: Stable email lookup hash for login and uniqueness checks
          * - password_hash: Bcrypt hashed password
          * - phone_encrypted, phone_iv, phone_tag: Encrypted phone components
          * - role: User role (default: 'user')
          */
         // Use $conn->prepare() to create prepared statement for INSERT
         $insertStmt = dbPrepare($conn,
-            "INSERT INTO user_account_tbl (name_id, email, password_hash, phone_encrypted, phone_iv, phone_tag, role) 
-             VALUES (:name_id, :email, :password_hash, :phone_encrypted, :phone_iv, :phone_tag, 'user')"
+            "INSERT INTO user_account_tbl (
+                name_id, email, email_encrypted, email_iv, email_tag, email_hash,
+                password_hash, phone_encrypted, phone_iv, phone_tag, role
+            ) VALUES (
+                :name_id, NULL, :email_encrypted, :email_iv, :email_tag, :email_hash,
+                :password_hash, :phone_encrypted, :phone_iv, :phone_tag, 'user'
+            )"
         );
         
         // Use $insertStmt->execute() with associative array of parameters
         // Each parameter placeholder :name is bound to its corresponding value
         $insertStmt->execute([
             ':name_id' => $nameId,
-            ':email' => $email,
+            ':email_encrypted' => $encryptedEmailData['encrypted'],
+            ':email_iv' => $encryptedEmailData['iv'],
+            ':email_tag' => $encryptedEmailData['tag'],
+            ':email_hash' => $emailHash,
             ':password_hash' => $hashedPassword,
             ':phone_encrypted' => $encryptedPhoneData['encrypted'],  // Use bracket notation to access array element
             ':phone_iv' => $encryptedPhoneData['iv'],

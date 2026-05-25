@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = logoutExtractToken(logoutGetAuthorizationHeaderValue());
 
         if (!$token) {
-            $data = json_decode(file_get_contents("php://input"), true);
+            $data = readEncryptedJsonRequestBody();
             if (isset($data['token'])) {
                 $token = trim($data['token']);
             }

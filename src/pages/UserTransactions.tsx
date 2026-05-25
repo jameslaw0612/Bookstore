@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CheckCircle2, Loader2, ShoppingBag } from 'lucide-react'
+import BookCoverImage from '../components/BookCoverImage'
 import UserCartDrawer from '../components/UserCartDrawer'
 import UserTopBar from '../components/UserTopBar'
 import '../styles/Home.css'
@@ -393,17 +394,11 @@ export default function UserTransactions() {
                     <div key={row.key} className="order-table__row">
                       <div className="order-table__product">
                         <div className="order-table__cover">
-                          {row.bookCoverImage ? (
-                            <img
-                              src={`/backend/uploads/books/${row.bookCoverImage}`}
-                              alt={row.title}
-                              className="order-table__cover-image"
-                            />
-                          ) : (
-                            <div className="order-table__cover-fallback">
-                              <ShoppingBag size={18} />
-                            </div>
-                          )}
+                          <BookCoverImage
+                            src={row.bookCoverImage ? `/backend/uploads/books/${row.bookCoverImage}` : null}
+                            alt={row.title}
+                            className="order-table__cover-image"
+                          />
                         </div>
                         <div className="order-table__product-copy">
                           <strong>{row.title}</strong>

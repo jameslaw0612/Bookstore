@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/response-encryption.php';
+responseEncryptionStart();
+
 // Use header() function to set CORS headers allowing cross-origin requests
 header("Access-Control-Allow-Origin: *");
 // Use header() to set Content-Type response header to JSON format

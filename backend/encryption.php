@@ -19,6 +19,13 @@
 require_once __DIR__ . '/config.php';
 
 class EncryptionUtil {
+    public static function normalizeEmail(string $email): string {
+        return strtolower(trim($email));
+    }
+
+    public static function hashEmailForLookup(string $email): string {
+        return hash_hmac('sha256', self::normalizeEmail($email), ENCRYPTION_KEY);
+    }
 
     /**
      * ENCRYPT METHOD - Core encryption function
@@ -220,5 +227,22 @@ class EncryptionUtil {
             throw new Exception('Decryption from storage failed: ' . $e->getMessage());
         }
     }
+}
+
+function decryptEmailFromRow(array $row): string
+{
+    try {
+        if (!empty($row['email_encrypted']) && !empty($row['email_iv']) && !empty($row['email_tag'])) {
+            return EncryptionUtil::decryptFromStorage(
+                $row['email_encrypted'],
+                $row['email_iv'],
+                $row['email_tag']
+            );
+        }
+    } catch (Exception $exception) {
+        // Fall through to legacy value handling below.
+    }
+
+    return trim((string) ($row['email'] ?? ''));
 }
 ?>

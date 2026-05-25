@@ -106,6 +106,16 @@ export default function ImageUpload({
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const handlePreviewImageLoad = () => {
+    setIsPreviewImageReady(true);
+    setPreviewLoadError(null);
+  };
+
+  const handlePreviewImageError = () => {
+    setIsPreviewImageReady(false);
+    setPreviewLoadError('The book cover could not be displayed for repositioning.');
+  };
+
   /**
    * Handle slider interaction to prevent page scrolling
    */
@@ -213,6 +223,23 @@ export default function ImageUpload({
     if (preview) {
       setIsPreviewImageReady(false);
       setPreviewLoadError(null);
+
+      const frameId = window.requestAnimationFrame(() => {
+        const previewImage = imageRef.current;
+
+        if (!previewImage || !previewImage.complete) {
+          return;
+        }
+
+        if (previewImage.naturalWidth > 0 && previewImage.naturalHeight > 0) {
+          handlePreviewImageLoad();
+          return;
+        }
+
+        handlePreviewImageError();
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
     } else {
       setIsPreviewImageReady(false);
     }
@@ -549,14 +576,8 @@ export default function ImageUpload({
                         transform: `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`,
                         cursor: isDragPanning ? 'grabbing' : 'grab',
                       }}
-                      onLoad={() => {
-                        setIsPreviewImageReady(true);
-                        setPreviewLoadError(null);
-                      }}
-                      onError={() => {
-                        setIsPreviewImageReady(false);
-                        setPreviewLoadError('The book cover could not be displayed for repositioning.');
-                      }}
+                      onLoad={handlePreviewImageLoad}
+                      onError={handlePreviewImageError}
                       onMouseDown={handleMouseDown}
                     />
                   </div>

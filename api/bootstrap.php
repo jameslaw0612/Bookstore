@@ -18,13 +18,7 @@ function apiRequestMethod(): string
 
 function apiReadJsonBody(): array
 {
-    $raw = file_get_contents('php://input');
-    if (!$raw) {
-        return [];
-    }
-
-    $decoded = json_decode($raw, true);
-    return is_array($decoded) ? $decoded : [];
+    return readEncryptedJsonRequestBody();
 }
 
 function apiPathSegments(): array
@@ -95,6 +89,21 @@ function apiDecryptPhone(array $row): string
         $row['phone_iv'] ?? null,
         $row['phone_tag'] ?? null
     );
+}
+
+function apiDecryptEmail(array $row): string
+{
+    return decryptEmailFromRow($row);
+}
+
+function apiNormalizeEmail(string $email): string
+{
+    return EncryptionUtil::normalizeEmail($email);
+}
+
+function apiHashEmailForLookup(string $email): string
+{
+    return EncryptionUtil::hashEmailForLookup($email);
 }
 
 function apiNormalizePhilippinePhone(string $phone): string
@@ -309,7 +318,9 @@ function apiFindAddressById(PDO $conn, int $accountId, int $addressId): ?array
 function apiFetchUserById(PDO $conn, int $accountId): ?array
 {
     $stmt = dbPrepare($conn, "
-        SELECT ua.account_id, ua.name_id, ua.email, ua.password_hash, ua.role,
+        SELECT ua.account_id, ua.name_id,
+               ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash,
+               ua.password_hash, ua.role,
                ua.phone_encrypted, ua.phone_iv, ua.phone_tag,
                un.fname_fld, un.lname_fld
         FROM user_account_tbl ua
@@ -328,6 +339,7 @@ function apiFetchUserById(PDO $conn, int $accountId): ?array
 
 function apiFormatUser(array $user, bool $includeSensitivePhone = false): array
 {
+    $email = apiDecryptEmail($user);
     $phone = apiDecryptPhone($user);
     $addresses = apiNormalizeAddressList($user['addresses'] ?? []);
     $primaryAddress = $addresses[0] ?? apiEmptyAddress();
@@ -336,7 +348,7 @@ function apiFormatUser(array $user, bool $includeSensitivePhone = false): array
         'account_id' => intval($user['account_id']),
         'fname' => $user['fname_fld'],
         'lname' => $user['lname_fld'],
-        'email' => $user['email'],
+        'email' => $email,
         'role' => $user['role'],
         'phone' => $includeSensitivePhone ? $phone : apiMaskPhone($phone),
         'address' => $primaryAddress,
@@ -396,7 +408,8 @@ function apiFetchOrderById(PDO $conn, int $orderId): ?array
         SELECT o.order_id, o.account_id, o.total_amount_fld, o.order_status_fld,
                o.payment_encrypted, o.payment_iv, o.payment_tag,
                o.order_created_fld, o.order_updated_fld,
-               ua.email, ua.phone_encrypted, ua.phone_iv, ua.phone_tag,
+               ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash,
+               ua.phone_encrypted, ua.phone_iv, ua.phone_tag,
                un.fname_fld, un.lname_fld
         FROM orders_tbl o
         JOIN user_account_tbl ua ON ua.account_id = o.account_id
@@ -471,7 +484,7 @@ function apiFetchOrderById(PDO $conn, int $orderId): ?array
             'account_id' => intval($order['account_id']),
             'fname' => $order['fname_fld'],
             'lname' => $order['lname_fld'],
-            'email' => $order['email'],
+            'email' => apiDecryptEmail($order),
             'phone' => $deliverySnapshot['phone'] !== ''
                 ? $deliverySnapshot['phone']
                 : apiDecryptStoredValue(

@@ -8,6 +8,9 @@
  * - Validates filename to prevent directory traversal attacks
  */
 
+require_once __DIR__ . '/response-encryption.php';
+responseEncryptionStart();
+
 /**
  * CORS HEADERS - Must be sent BEFORE any other output
  */

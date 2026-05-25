@@ -198,7 +198,11 @@ CREATE TABLE `reviews_tbl` (
 CREATE TABLE `user_account_tbl` (
   `account_id` int(11) NOT NULL,
   `name_id` int(11) NOT NULL,
-  `email` varchar(150) NOT NULL,
+  `email` varchar(191) DEFAULT NULL,
+  `email_encrypted` text DEFAULT NULL,
+  `email_iv` varchar(255) DEFAULT NULL,
+  `email_tag` varchar(255) DEFAULT NULL,
+  `email_hash` char(64) DEFAULT NULL,
   `password_hash` varchar(255) NOT NULL,
   `phone_encrypted` text DEFAULT NULL,
   `phone_iv` text DEFAULT NULL,
@@ -327,7 +331,7 @@ ALTER TABLE `reviews_tbl`
 --
 ALTER TABLE `user_account_tbl`
   ADD PRIMARY KEY (`account_id`),
-  ADD UNIQUE KEY `uq_buyer_email` (`email`),
+  ADD UNIQUE KEY `uq_user_account_email_hash` (`email_hash`),
   ADD KEY `idx_buyer_name_id` (`name_id`);
 
 --

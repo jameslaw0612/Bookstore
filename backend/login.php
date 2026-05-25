@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = readEncryptedJsonRequestBody();
 
         if (!isset($data['email']) || !isset($data['password'])) {
             http_response_code(400);
@@ -17,18 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $email = $data['email'];
+        $email = EncryptionUtil::normalizeEmail((string) $data['email']);
         $password = $data['password'];
+        $emailHash = EncryptionUtil::hashEmailForLookup($email);
 
         $stmt = dbPrepare($conn, "
-            SELECT ua.account_id, ua.email, ua.password_hash, ua.role, 
+            SELECT ua.account_id, ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash,
+                   ua.password_hash, ua.role, 
                    ua.phone_encrypted, ua.phone_iv, ua.phone_tag, 
                    un.fname_fld, un.lname_fld 
             FROM user_account_tbl ua
             LEFT JOIN user_name_tbl un ON ua.name_id = un.name_id
-            WHERE ua.email = :email
+            WHERE ua.email_hash = :email_hash
         ");
-        $stmt->execute([':email' => $email]);
+        $stmt->execute([':email_hash' => $emailHash]);
 
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -50,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // Decrypt phone
+        $decryptedEmail = decryptEmailFromRow($user);
         $decryptedPhone = '';
         try {
             if (!empty($user['phone_encrypted']) && !empty($user['phone_iv']) && !empty($user['phone_tag'])) {
@@ -94,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'account_id' => $user['account_id'],
                 'fname' => $user['fname_fld'],
                 'lname' => $user['lname_fld'],
-                'email' => $user['email'],
+                'email' => $decryptedEmail,
                 'phone' => $decryptedPhone
             ]
         ]);

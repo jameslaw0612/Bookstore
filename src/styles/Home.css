@@ -406,6 +406,12 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+.reset-filters-btn--compact {
+  width: auto;
+  min-width: 180px;
+  margin: 0.75rem auto 0;
+}
+
 /* ============================================
    CATALOG AREA
    ============================================ */

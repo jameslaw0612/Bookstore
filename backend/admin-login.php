@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = readEncryptedJsonRequestBody();
 
         if (!isset($data['email']) || !isset($data['password'])) {
             http_response_code(400);
@@ -17,18 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $email = $data['email'];
+        $email = EncryptionUtil::normalizeEmail((string) $data['email']);
         $password = $data['password'];
+        $emailHash = EncryptionUtil::hashEmailForLookup($email);
 
         $stmt = dbPrepare($conn, "
-            SELECT ua.account_id, ua.email, ua.password_hash, ua.role, 
+            SELECT ua.account_id, ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash,
+                   ua.password_hash, ua.role, 
                    ua.phone_encrypted, ua.phone_iv, ua.phone_tag, 
                    un.fname_fld, un.lname_fld 
             FROM user_account_tbl ua
             LEFT JOIN user_name_tbl un ON ua.name_id = un.name_id
-            WHERE ua.email = :email AND ua.role = 'admin'
+            WHERE ua.email_hash = :email_hash AND ua.role = 'admin'
         ");
-        $stmt->execute([':email' => $email]);
+        $stmt->execute([':email_hash' => $emailHash]);
 
         $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -44,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // Decrypt phone
+        $decryptedEmail = decryptEmailFromRow($admin);
         $decryptedPhone = '';
         try {
             if (!empty($admin['phone_encrypted']) && !empty($admin['phone_iv']) && !empty($admin['phone_tag'])) {
@@ -88,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'account_id' => $admin['account_id'],
                 'fname' => $admin['fname_fld'],
                 'lname' => $admin['lname_fld'],
-                'email' => $admin['email'],
+                'email' => $decryptedEmail,
                 'phone' => $decryptedPhone,
                 'role' => $admin['role']
             ]

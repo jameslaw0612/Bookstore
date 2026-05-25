@@ -1,3 +1,5 @@
+import { parseApiResponse } from './responseCrypto'
+
 export interface SessionUserAddress {
   address_id?: number
   country: string
@@ -59,16 +61,7 @@ export async function apiRequest<T>(input: string, init: RequestInit = {}): Prom
     headers,
   })
 
-  const rawText = await response.text()
-  let payload: unknown = {}
-
-  if (rawText.trim()) {
-    try {
-      payload = JSON.parse(rawText)
-    } catch {
-      throw new Error(`Unexpected server response: ${rawText.slice(0, 160)}`)
-    }
-  }
+  const payload = await parseApiResponse<unknown>(response)
 
   if (!response.ok) {
     const message =

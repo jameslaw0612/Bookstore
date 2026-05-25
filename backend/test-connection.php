@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/response-encryption.php';
+responseEncryptionStart();
+
 // Very simple test - no includes, direct connection test
 // Use header() function to set Content-Type response header to JSON
 header("Content-Type: application/json; charset=utf-8");

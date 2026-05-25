@@ -46,10 +46,12 @@ function handleAuthRoutes(PDO $conn, string $method, array $segments): void
     if ($resource === 'register' && $method === 'POST') {
         $data = apiReadJsonBody();
         apiRequireFields($data, ['fname', 'lname', 'email', 'phone', 'password']);
+        $normalizedEmail = apiNormalizeEmail((string) $data['email']);
         $normalizedPhone = apiNormalizePhilippinePhone((string) $data['phone']);
+        $emailHash = apiHashEmailForLookup($normalizedEmail);
 
-        $checkStmt = dbPrepare($conn, 'SELECT account_id FROM user_account_tbl WHERE email = :email');
-        $checkStmt->execute([':email' => $data['email']]);
+        $checkStmt = dbPrepare($conn, 'SELECT account_id FROM user_account_tbl WHERE email_hash = :email_hash');
+        $checkStmt->execute([':email_hash' => $emailHash]);
         if ($checkStmt->fetch()) {
             apiResponse(400, ['success' => false, 'message' => 'Email already registered']);
         }
@@ -58,14 +60,24 @@ function handleAuthRoutes(PDO $conn, string $method, array $segments): void
         $nameStmt->execute([':fname' => trim($data['fname']), ':lname' => trim($data['lname'])]);
         $nameId = intval($conn->lastInsertId());
 
+        $encryptedEmail = EncryptionUtil::encryptForStorage($normalizedEmail);
         $encryptedPhone = EncryptionUtil::encryptForStorage($normalizedPhone);
         $insertStmt = dbPrepare($conn, "
-            INSERT INTO user_account_tbl (name_id, email, password_hash, phone_encrypted, phone_iv, phone_tag, role)
-            VALUES (:name_id, :email, :password_hash, :phone_encrypted, :phone_iv, :phone_tag, 'user')
+            INSERT INTO user_account_tbl (
+                name_id, email, email_encrypted, email_iv, email_tag, email_hash,
+                password_hash, phone_encrypted, phone_iv, phone_tag, role
+            )
+            VALUES (
+                :name_id, NULL, :email_encrypted, :email_iv, :email_tag, :email_hash,
+                :password_hash, :phone_encrypted, :phone_iv, :phone_tag, 'user'
+            )
         ");
         $insertStmt->execute([
             ':name_id' => $nameId,
-            ':email' => trim($data['email']),
+            ':email_encrypted' => $encryptedEmail['encrypted'],
+            ':email_iv' => $encryptedEmail['iv'],
+            ':email_tag' => $encryptedEmail['tag'],
+            ':email_hash' => $emailHash,
             ':password_hash' => password_hash($data['password'], PASSWORD_BCRYPT),
             ':phone_encrypted' => $encryptedPhone['encrypted'],
             ':phone_iv' => $encryptedPhone['iv'],
@@ -79,16 +91,20 @@ function handleAuthRoutes(PDO $conn, string $method, array $segments): void
     if ($resource === 'login' && $method === 'POST') {
         $data = apiReadJsonBody();
         apiRequireFields($data, ['email', 'password']);
+        $normalizedEmail = apiNormalizeEmail((string) $data['email']);
+        $emailHash = apiHashEmailForLookup($normalizedEmail);
 
         $stmt = dbPrepare($conn, "
-            SELECT ua.account_id, ua.name_id, ua.email, ua.password_hash, ua.role,
+            SELECT ua.account_id, ua.name_id,
+                   ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash,
+                   ua.password_hash, ua.role,
                    ua.phone_encrypted, ua.phone_iv, ua.phone_tag,
                    un.fname_fld, un.lname_fld
             FROM user_account_tbl ua
             JOIN user_name_tbl un ON un.name_id = ua.name_id
-            WHERE ua.email = :email
+            WHERE ua.email_hash = :email_hash
         ");
-        $stmt->execute([':email' => trim($data['email'])]);
+        $stmt->execute([':email_hash' => $emailHash]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$user || !password_verify($data['password'], $user['password_hash'])) {
@@ -148,8 +164,10 @@ function handleUserRoutes(PDO $conn, string $method, array $segments): void
     if ($resource === 'profile' && $method === 'PUT') {
         $data = apiReadJsonBody();
         apiRequireFields($data, ['fname', 'lname', 'email', 'phone']);
+        $normalizedEmail = apiNormalizeEmail((string) $data['email']);
         $normalizedPhone = apiNormalizePhilippinePhone((string) $data['phone']);
         $addresses = apiNormalizeAddressList($data['addresses'] ?? []);
+        $emailHash = apiHashEmailForLookup($normalizedEmail);
 
         $user = apiFetchUserById($conn, intval($currentUser['account_id']));
         if (!$user) {
@@ -158,10 +176,10 @@ function handleUserRoutes(PDO $conn, string $method, array $segments): void
 
         $duplicateStmt = dbPrepare($conn, '
             SELECT account_id FROM user_account_tbl
-            WHERE email = :email AND account_id != :account_id
+            WHERE email_hash = :email_hash AND account_id != :account_id
         ');
         $duplicateStmt->execute([
-            ':email' => trim($data['email']),
+            ':email_hash' => $emailHash,
             ':account_id' => $currentUser['account_id'],
         ]);
         if ($duplicateStmt->fetch()) {
@@ -176,6 +194,7 @@ function handleUserRoutes(PDO $conn, string $method, array $segments): void
             }
         }
 
+        $encryptedEmail = EncryptionUtil::encryptForStorage($normalizedEmail);
         $encryptedPhone = EncryptionUtil::encryptForStorage($normalizedPhone);
         try {
             $conn->beginTransaction();
@@ -189,10 +208,20 @@ function handleUserRoutes(PDO $conn, string $method, array $segments): void
             ]);
             dbPrepare($conn, '
                 UPDATE user_account_tbl
-                SET email = :email, phone_encrypted = :phone_encrypted, phone_iv = :phone_iv, phone_tag = :phone_tag
+                SET email = NULL,
+                    email_encrypted = :email_encrypted,
+                    email_iv = :email_iv,
+                    email_tag = :email_tag,
+                    email_hash = :email_hash,
+                    phone_encrypted = :phone_encrypted,
+                    phone_iv = :phone_iv,
+                    phone_tag = :phone_tag
                 WHERE account_id = :account_id
             ')->execute([
-                ':email' => trim($data['email']),
+                ':email_encrypted' => $encryptedEmail['encrypted'],
+                ':email_iv' => $encryptedEmail['iv'],
+                ':email_tag' => $encryptedEmail['tag'],
+                ':email_hash' => $emailHash,
                 ':phone_encrypted' => $encryptedPhone['encrypted'],
                 ':phone_iv' => $encryptedPhone['iv'],
                 ':phone_tag' => $encryptedPhone['tag'],
@@ -551,16 +580,35 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
             apiResponse(400, ['success' => false, 'message' => 'Please select a delivery address before placing your order']);
         }
 
-        $selectedAddress = apiFindAddressById($conn, $accountId, $addressId);
+        $savedAddresses = apiFetchAddressesByAccountId($conn, $accountId);
+        if (count($savedAddresses) === 0) {
+            apiResponse(400, ['success' => false, 'message' => 'Please add a delivery address before placing your order']);
+        }
+
+        $selectedAddress = null;
+        foreach ($savedAddresses as $address) {
+            if (intval($address['address_id'] ?? 0) === $addressId) {
+                $selectedAddress = $address;
+                break;
+            }
+        }
+
+        if (!$selectedAddress && count($savedAddresses) === 1) {
+            $selectedAddress = $savedAddresses[0];
+        }
+
         if (!$selectedAddress) {
-            apiResponse(400, ['success' => false, 'message' => 'The selected delivery address is not available']);
+            apiResponse(400, [
+                'success' => false,
+                'message' => 'Your saved delivery addresses changed. Please reopen checkout and choose your address again.',
+            ]);
         }
 
         $orderingUser = apiFetchUserById($conn, $accountId);
         if (!$orderingUser) {
             apiResponse(404, ['success' => false, 'message' => 'User not found']);
         }
-        $deliveryPhone = trim((string) ($orderingUser['phone'] ?? ''));
+        $deliveryPhone = trim(apiDecryptPhone($orderingUser));
         if ($deliveryPhone === '') {
             apiResponse(400, ['success' => false, 'message' => 'Please add a contact number before placing your order']);
         }
@@ -624,6 +672,10 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
             $validatedBooks[] = $book;
             $recalculatedTotal += floatval($item['price_at_purchase']) * intval($item['quantity']);
         }
+
+        // Ensure the delivery snapshot table exists before opening a transaction.
+        // MySQL DDL can implicitly commit, which would break the checkout flow if it runs mid-transaction.
+        apiEnsureOrderDeliveryTable($conn);
 
         try {
             $conn->beginTransaction();
@@ -879,6 +931,8 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
             apiResponse(404, ['success' => false, 'message' => 'Order item not found']);
         }
 
+        $shouldCancelWholeOrder = count($order['items']) === 1;
+
         try {
             $conn->beginTransaction();
 
@@ -891,31 +945,33 @@ function handleOrderRoutes(PDO $conn, string $method, array $segments): void
                 ':book_id' => intval($matchedItem['book_id']),
             ]);
 
-            dbPrepare($conn, '
-                DELETE FROM order_items_tbl
-                WHERE order_item_id = :order_item_id AND order_id = :order_id
-            ')->execute([
-                ':order_item_id' => $orderItemId,
-                ':order_id' => $orderId,
-            ]);
-
-            $remainingStmt = dbPrepare($conn, '
-                SELECT COUNT(*) AS item_count, COALESCE(SUM(price_at_purchase_fld * quantity_fld), 0) AS total_amount
-                FROM order_items_tbl
-                WHERE order_id = :order_id
-            ');
-            $remainingStmt->execute([':order_id' => $orderId]);
-            $remaining = $remainingStmt->fetch(PDO::FETCH_ASSOC) ?: ['item_count' => 0, 'total_amount' => 0];
-
-            if (intval($remaining['item_count']) === 0) {
+            if ($shouldCancelWholeOrder) {
                 dbPrepare($conn, '
-                    DELETE FROM orders_tbl
+                    UPDATE orders_tbl
+                    SET order_status_fld = :status
                     WHERE order_id = :order_id AND account_id = :account_id
                 ')->execute([
+                    ':status' => 'cancelled',
                     ':order_id' => $orderId,
                     ':account_id' => intval($order['account_id']),
                 ]);
             } else {
+                dbPrepare($conn, '
+                    DELETE FROM order_items_tbl
+                    WHERE order_item_id = :order_item_id AND order_id = :order_id
+                ')->execute([
+                    ':order_item_id' => $orderItemId,
+                    ':order_id' => $orderId,
+                ]);
+
+                $remainingStmt = dbPrepare($conn, '
+                    SELECT COUNT(*) AS item_count, COALESCE(SUM(price_at_purchase_fld * quantity_fld), 0) AS total_amount
+                    FROM order_items_tbl
+                    WHERE order_id = :order_id
+                ');
+                $remainingStmt->execute([':order_id' => $orderId]);
+                $remaining = $remainingStmt->fetch(PDO::FETCH_ASSOC) ?: ['item_count' => 0, 'total_amount' => 0];
+
                 dbPrepare($conn, '
                     UPDATE orders_tbl
                     SET total_amount_fld = :total_amount
@@ -1053,7 +1109,9 @@ function handleAdminRoutes(PDO $conn, string $method, array $segments): void
 
     if ($resource === 'users' && $method === 'GET') {
         $stmt = dbPrepare($conn, '
-            SELECT ua.account_id, ua.name_id, ua.email, ua.password_hash, ua.role,
+            SELECT ua.account_id, ua.name_id,
+                   ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash,
+                   ua.password_hash, ua.role,
                    ua.phone_encrypted, ua.phone_iv, ua.phone_tag,
                    un.fname_fld, un.lname_fld
             FROM user_account_tbl ua
@@ -1328,13 +1386,17 @@ function handleReportRoutes(PDO $conn, string $method, array $segments): void
                    un.fname_fld AS fname,
                    un.lname_fld AS lname,
                    ua.email,
+                   ua.email_encrypted,
+                   ua.email_iv,
+                   ua.email_tag,
+                   ua.email_hash,
                    COUNT(o.order_id) AS total_orders,
                    COALESCE(SUM(o.total_amount_fld), 0) AS total_amount
             FROM orders_tbl o
             JOIN user_account_tbl ua ON ua.account_id = o.account_id
             JOIN user_name_tbl un ON un.name_id = ua.name_id
             WHERE o.order_status_fld != 'cart'
-            GROUP BY ua.account_id, un.fname_fld, un.lname_fld, ua.email
+            GROUP BY ua.account_id, un.fname_fld, un.lname_fld, ua.email, ua.email_encrypted, ua.email_iv, ua.email_tag, ua.email_hash
             ORDER BY total_orders DESC, total_amount DESC
             LIMIT 5
         ");
@@ -1344,7 +1406,7 @@ function handleReportRoutes(PDO $conn, string $method, array $segments): void
                 'account_id' => intval($row['account_id']),
                 'fname' => $row['fname'],
                 'lname' => $row['lname'],
-                'email' => $row['email'],
+                'email' => apiDecryptEmail($row),
                 'total_orders' => intval($row['total_orders']),
                 'total_amount' => floatval($row['total_amount']),
             ],

@@ -1,7 +1,9 @@
-import { ArrowRight, BookOpenText, CreditCard, ShieldCheck, Sparkles, Truck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowRight, BookOpenText, CreditCard, ShieldCheck, Truck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import webLogo from '../assets/Web_Logo/center version.png'
 import '../styles/Landing.css'
+import { parseApiResponse } from '../utils/responseCrypto'
 
 const featuredHighlights = [
   {
@@ -21,21 +23,49 @@ const featuredHighlights = [
   },
 ]
 
-const storefrontStats = [
-  { value: '9+', label: 'Book categories' },
-  { value: '10', label: 'Seeded bestsellers' },
-  { value: '24/7', label: 'Account access' },
-]
+interface CategoriesResponse {
+  success: boolean
+  stats?: {
+    category_count: number
+    completed_orders: number
+  }
+}
 
 export default function Landing() {
+  const [categoryCount, setCategoryCount] = useState<string>('--')
+  const [completedOrdersCount, setCompletedOrdersCount] = useState<string>('--')
+
+  useEffect(() => {
+    const loadLandingStats = async () => {
+      try {
+        const response = await fetch('/backend/get-landing-stats.php')
+        if (!response.ok) {
+          return
+        }
+
+        const data = await parseApiResponse<CategoriesResponse>(response)
+        if (data.success && data.stats) {
+          setCategoryCount(String(data.stats.category_count))
+          setCompletedOrdersCount(String(data.stats.completed_orders))
+        }
+      } catch {
+        // Keep the fallback display if the public categories request fails.
+      }
+    }
+
+    void loadLandingStats()
+  }, [])
+
+  const storefrontStats = [
+    { value: categoryCount, label: 'Book categories' },
+    { value: completedOrdersCount, label: 'Completed orders' },
+    { value: '24/7', label: 'Account access' },
+  ]
+
   return (
     <div className="landing-shell">
       <header className="landing-hero">
         <div className="landing-hero__copy">
-          <div className="landing-kicker">
-            <Sparkles size={16} />
-            <span>Modern online bookstore experience</span>
-          </div>
           <h1>Discover your next favorite book in a storefront built for readers.</h1>
           <p>
             General Online Bookstore brings together a polished catalog, secure customer accounts,
@@ -65,13 +95,6 @@ export default function Landing() {
         <div className="landing-hero__visual">
           <div className="landing-brand-card">
             <img src={webLogo} alt="General Online Bookstore" className="landing-logo" />
-            <div className="landing-brand-card__meta">
-              <div>
-                <p>Reader-first storefront</p>
-                <h2>General Online Bookstore</h2>
-              </div>
-              <span>Live catalog</span>
-            </div>
           </div>
 
           <div className="landing-floating-card landing-floating-card--one">

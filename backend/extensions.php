@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/response-encryption.php';
+responseEncryptionStart();
+
 // Use header() function to set Content-Type response header
 header("Content-Type: application/json");
 
